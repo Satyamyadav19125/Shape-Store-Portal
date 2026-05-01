@@ -795,8 +795,6 @@ code{background:var(--s3);padding:1px 5px;border-radius:4px;font-size:12px;font-
 </div>
 
 <div class="toast" id="toast"></div>
-<div id="imgLightbox" onclick="closeLightbox()">
-
 <!-- UPLOAD PROGRESS OVERLAY -->
 <div id="upload-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;align-items:center;justify-content:center;flex-direction:column">
   <div style="background:#fff;border-radius:18px;padding:32px 40px;text-align:center;min-width:280px;box-shadow:0 8px 40px rgba(0,0,0,0.3)">
@@ -809,6 +807,8 @@ code{background:var(--s3);padding:1px 5px;border-radius:4px;font-size:12px;font-
     <div id="upload-pct" style="font-size:12px;color:#9aa0b4">0%</div>
   </div>
 </div>
+
+<div id="imgLightbox" onclick="closeLightbox()">
   <button class="lb-close" onclick="closeLightbox()">✕</button>
   <img id="lbImg" src="" alt="">
 </div>
@@ -896,11 +896,9 @@ function fbStartListening(){
     var data=snap.val();
     if(data){
       var prods=Object.values(data);
-      // Only update if changed (avoid overwriting during current add)
-      if(prods.length !== ST.products.length){
-        ST.products=prods;
-        sd();
-      }
+      prods.sort(function(a,b){ return (b.id||'').localeCompare(a.id||''); });
+      ST.products=prods;
+      sd();
     }
     if(document.getElementById('ap-products') && document.getElementById('ap-products').classList.contains('on')){
       renderManage();
@@ -915,7 +913,9 @@ function fbStartBuyerListening(){
   r.on('value', function(snap){
     var data=snap.val();
     if(data){
+      // Sort newest first by id (which is timestamp-based)
       var prods=Object.values(data);
+      prods.sort(function(a,b){ return (b.id||'').localeCompare(a.id||''); });
       ST.products=prods;
     } else {
       ST.products=[];
@@ -1446,16 +1446,14 @@ function addProd(){
   var prod={id:'p'+Date.now(),name:n,code:c,cat:cat,pack:pk,mrp:m,dp:dp,desc:d,videoUrl:vid,em:CE[cat]||'📦',ik:null};
   if(newProdImg) prod.customImg=newProdImg;
   ST.products.unshift(prod); sd();
-  // Show upload progress overlay, wait for Firebase confirmation
+  // 1. Reset form and update list IMMEDIATELY
+  resetAddForm();
+  renderManage();
+  toast('Product added!','ok');
+  // 2. Then show overlay and sync to Firebase in background
   var iv=showUploadOverlay();
   fbSyncProducts(function(success){
     finishUploadOverlay(iv, success);
-    resetAddForm();
-    renderManage();
-    setTimeout(function(){
-      var ml=document.getElementById('mlist');
-      if(ml) ml.scrollIntoView({behavior:'smooth',block:'start'});
-    },200);
   });
 }
 
