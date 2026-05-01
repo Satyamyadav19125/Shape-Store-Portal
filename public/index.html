@@ -813,8 +813,8 @@ code{background:var(--s3);padding:1px 5px;border-radius:4px;font-size:12px;font-
   <img id="lbImg" src="" alt="">
 </div>
 
-<script async src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script async src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <script>
 // ═══ FIREBASE ═══
 var FB_CONFIG = {
@@ -827,32 +827,19 @@ var FB_CONFIG = {
   appId: "1:952607687524:web:f34207e82311e1eb4b3071"
 };
 var fbApp, fbDB, fbListener=null;
-function initFirebase(){
-  try {
-    if(typeof firebase==='undefined') return false;
-    if(!fbApp) fbApp = firebase.initializeApp(FB_CONFIG);
-    if(!fbDB)  fbDB  = firebase.database();
-    return true;
-  } catch(e) { console.warn('Firebase init failed:', e); return false; }
-}
-// Try immediately, then retry after async scripts load
-initFirebase();
-setTimeout(initFirebase, 500);
-setTimeout(initFirebase, 1500);
+// Firebase scripts load synchronously before this - always available
+try {
+  fbApp = firebase.initializeApp(FB_CONFIG);
+  fbDB  = firebase.database();
+  console.log('Firebase connected');
+} catch(e) { console.warn('Firebase init failed:', e); }
 
-// Called after login - waits until Firebase is ready then starts listener
-function startListenerWhenReady(fn, attempts){
-  attempts = attempts||0;
+function startListenerWhenReady(fn){
   if(fbDB){ fn(); return; }
-  if(attempts>20) return;
-  initFirebase();
-  if(fbDB){ fn(); return; }
-  setTimeout(function(){ startListenerWhenReady(fn, attempts+1); }, 300);
+  console.warn('Firebase not ready');
 }
 
-function fbRef(path){ 
-  if(!fbDB) initFirebase();
-  return fbDB ? fbDB.ref(path) : null; 
+function fbRef(path){ return fbDB ? fbDB.ref(path) : null; 
 }
 
 function fbSaveOrder(order){
@@ -860,12 +847,12 @@ function fbSaveOrder(order){
   r.set(order).catch(function(e){ console.warn('FB write error:',e); });
 }
 function fbSyncProducts(onDone){
-  if(!fbDB){ setTimeout(function(){ fbSyncProducts(onDone); }, 500); return; }
+  if(!fbDB){ console.warn('No Firebase'); if(onDone) onDone(false); return; }
   var obj={};
   ST.products.forEach(function(p){ obj[p.id]=p; });
   fbDB.ref('products').set(obj)
-    .then(function(){ if(onDone) onDone(true); })
-    .catch(function(e){ console.warn('FB products sync error:',e); if(onDone) onDone(false); });
+    .then(function(){ console.log('Products synced to Firebase'); if(onDone) onDone(true); })
+    .catch(function(e){ console.warn('FB sync error:',e); if(onDone) onDone(false); });
 }
 function fbUpdateOrder(id, data){
   var r=fbRef('orders/'+id); if(!r) return;
@@ -909,8 +896,8 @@ function fbStopListening(){
   if(fbDB && fbListener){ fbDB.ref('orders').off('value', fbListener); fbListener=null; }
 }
 function fbStartBuyerListening(){
-  var r=fbRef('products'); if(!r){ setTimeout(function(){startListenerWhenReady(fbStartBuyerListening);},1000); return; }
-  r.on('value', function(snap){
+  if(!fbDB){ console.warn('No Firebase for buyer listener'); return; }
+  fbDB.ref('products').on('value', function(snap){
     var data=snap.val();
     if(data){
       // Sort newest first by id (which is timestamp-based)
@@ -1039,6 +1026,8 @@ function doLogin(){
     document.getElementById('bname').textContent=u.name;
     renderCats();renderProds();
     startListenerWhenReady(fbStartBuyerListening);
+    // Also listen to orders so buyer history updates in real time
+    startListenerWhenReady(fbStartListening);
   }
 }
 
