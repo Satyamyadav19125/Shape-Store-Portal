@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shape Store Portal</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+    
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .header { background: #1a1a2e; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 24px; }
+    .status { padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .status.connected { background: #22c55e; color: white; }
+    .status.disconnected { background: #ef4444; color: white; }
+    
+    .role-select { padding: 10px; font-size: 16px; border-radius: 4px; border: 2px solid #ddd; cursor: pointer; }
+    
+    .main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .panel h2 { margin-bottom: 20px; color: #1a1a2e; font-size: 18px; }
+    
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 12px; font-weight: bold; color: #666; margin-bottom: 6px; text-transform: uppercase; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 4px; font-size: 14px; }
+    .form-group input:focus { outline: none; border-color: #1a1a2e; }
+    
+    button { padding: 12px 20px; background: #1a1a2e; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+    button:hover { background: #0f3460; }
+    button:active { opacity: 0.8; }
+    
+    .products-list { margin-top: 20px; }
+    .product-card { background: #f9f9f9; padding: 16px; border-radius: 6px; margin-bottom: 12px; border-left: 4px solid #1a1a2e; }
+    .product-card h4 { color: #1a1a2e; margin-bottom: 6px; }
+    .product-card p { font-size: 13px; color: #666; margin-bottom: 4px; }
+    .product-card .code { font-family: monospace; background: #e0e0e0; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+    
+    .empty { text-align: center; padding: 40px 20px; color: #999; }
+    .empty-icon { font-size: 48px; margin-bottom: 10px; }
+    
+    .buyer-panel { grid-column: 1 / -1; }
+    .buyers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #1a1a2e; color: white; padding: 16px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; }
+    
+    @media (max-width: 768px) {
+      .main { grid-template-columns: 1fr; }
+      .header { flex-direction: column; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>📦 Shape Store Portal</h1>
+      <p style="font-size: 13px; opacity: 0.8; margin-top: 4px;">Real-time Product Management</p>
+    </div>
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <select id="roleSelect" class="role-select" onchange="switchRole()">
+        <option value="admin">👨‍💼 Admin</option>
+        <option value="buyer">👤 Buyer</option>
+      </select>
+      <div id="status" class="status disconnected">Connecting...</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- ADMIN PANEL -->
+    <div id="adminPanel" class="panel">
+      <h2>➕ Add New Product</h2>
+      
+      <div class="form-group">
+        <label>Product Name *</label>
+        <input type="text" id="prodName" placeholder="e.g. Ballpoint Pen">
+      </div>
+      
+      <div class="form-group">
+        <label>Product Code *</label>
+        <input type="text" id="prodCode" placeholder="e.g. PEN-001">
+      </div>
+      
+      <div class="form-group">
+        <label>Price</label>
+        <input type="text" id="prodPrice" placeholder="e.g. ₹50/-">
+      </div>
+      
+      <div class="form-group">
+        <label>Category</label>
+        <select id="prodCategory">
+          <option>Pens</option>
+          <option>Pencils</option>
+          <option>Notebooks</option>
+          <option>Markers</option>
+        </select>
+      </div>
+      
+      <button onclick="addProduct()" style="width: 100%; margin-bottom: 16px;">✨ Add Product</button>
+      
+      <h2 style="margin-top: 30px;">All Products (Admin View)</h2>
+      <div id="adminProducts" class="products-list">
+        <div class="empty"><div class="empty-icon">📦</div>No products yet</div>
+      </div>
+    </div>
+
+    <!-- BUYER PANEL -->
+    <div id="buyerPanel" class="panel" style="display: none;">
+      <h2>🛍️ Available Products</h2>
+      <p style="font-size: 13px; color: #666; margin-bottom: 16px;">Products available for order</p>
+      <div id="buyerProducts" class="products-list">
+        <div class="empty"><div class="empty-icon">📦</div>No products available</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===== SOCKET.IO CONNECTION =====
+const socket = io();
+
+let products = [];
+let currentRole = 'admin';
+
+// Connection events
+socket.on('connect', () => {
+  console.log('✓ Connected to server');
+  updateStatus(true);
+  showToast('Connected to server!', 'success');
+});
+
+socket.on('disconnect', () => {
+  console.log('✗ Disconnected from server');
+  updateStatus(false);
+  showToast('Disconnected from server', 'error');
+});
+
+// Load products when they update
+socket.on('load-products', (data) => {
+  products = data.products || [];
+  console.log('✓ Loaded', products.length, 'products');
+  renderProducts();
+});
+
+// ===== UI FUNCTIONS =====
+function switchRole() {
+  currentRole = document.getElementById('roleSelect').value;
+  const adminPanel = document.getElementById('adminPanel');
+  const buyerPanel = document.getElementById('buyerPanel');
+  
+  if (currentRole === 'admin') {
+    adminPanel.style.display = 'block';
+    buyerPanel.style.display = 'none';
+  } else {
+    adminPanel.style.display = 'none';
+    buyerPanel.style.display = 'block';
+  }
+}
+
+function addProduct() {
+  const name = document.getElementById('prodName').value.trim();
+  const code = document.getElementById('prodCode').value.trim();
+  const price = document.getElementById('prodPrice').value.trim();
+  const category = document.getElementById('prodCategory').value;
+  
+  if (!name || !code) {
+    showToast('Please fill in Name and Code', 'error');
+    return;
+  }
+  
+  // Check for duplicate code
+  if (products.find(p => p.code.toLowerCase() === code.toLowerCase())) {
+    showToast('Code already exists!', 'error');
+    return;
+  }
+  
+  const product = {
+    id: 'p' + Date.now(),
+    name,
+    code,
+    price,
+    category,
+    createdAt: new Date().toLocaleString()
+  };
+  
+  // Send to server via Socket.io
+  socket.emit('add-product', product);
+  
+  // Clear form
+  document.getElementById('prodName').value = '';
+  document.getElementById('prodCode').value = '';
+  document.getElementById('prodPrice').value = '';
+  document.getElementById('prodCategory').selectedIndex = 0;
+  
+  showToast('Product added!', 'success');
+}
+
+function renderProducts() {
+  // Admin view - all products with edit/delete
+  const adminHtml = products.length === 0 
+    ? '<div class="empty"><div class="empty-icon">📦</div>No products yet</div>'
+    : products.map(p => `
+      <div class="product-card">
+        <h4>${p.name}</h4>
+        <p>Code: <span class="code">${p.code}</span></p>
+        <p>Price: ${p.price || '—'}</p>
+        <p>Category: ${p.category}</p>
+        <p style="font-size: 11px; color: #999;">Added: ${p.createdAt}</p>
+      </div>
+    `).join('');
+  
+  document.getElementById('adminProducts').innerHTML = adminHtml;
+  
+  // Buyer view - simpler display
+  const buyerHtml = products.length === 0
+    ? '<div class="empty"><div class="empty-icon">🛍️</div>No products available</div>'
+    : products.map(p => `
+      <div class="product-card" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+        <h4>${p.name}</h4>
+        <p><span class="code">${p.code}</span></p>
+        <p>Price: ${p.price || 'Contact seller'}</p>
+        <p>Category: ${p.category}</p>
+        <button style="width: 100%; margin-top: 10px; background: #22c55e;" onclick="orderProduct('${p.code}')">Order Now</button>
+      </div>
+    `).join('');
+  
+  document.getElementById('buyerProducts').innerHTML = buyerHtml;
+}
+
+function orderProduct(code) {
+  showToast(`Order placed for ${code}!`, 'success');
+}
+
+function updateStatus(connected) {
+  const status = document.getElementById('status');
+  if (connected) {
+    status.textContent = '🟢 Connected';
+    status.className = 'status connected';
+  } else {
+    status.textContent = '🔴 Disconnected';
+    status.className = 'status disconnected';
+  }
+}
+
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.style.opacity = '1';
+  toast.style.background = type === 'error' ? '#ef4444' : type === 'success' ? '#22c55e' : '#1a1a2e';
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+  }, 3000);
+}
+
+// Initialize
+switchRole();
+</script>
+
+</body>
+</html>
