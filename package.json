@@ -2,7 +2,7 @@
   "name": "shape-store-portal",
   "version": "1.0.0",
   "description": "Simple Shape Store Portal with real-time sync",
-  "main": "server_simple.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server_simple.js"
   },
