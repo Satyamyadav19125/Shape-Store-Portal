@@ -850,9 +850,16 @@ function fbSyncProducts(onDone){
   if(!fbDB){ console.warn('No Firebase'); if(onDone) onDone(false); return; }
   var obj={};
   ST.products.forEach(function(p){ obj[p.id]=p; });
+  console.log('Syncing', Object.keys(obj).length, 'products to Firebase');
   fbDB.ref('products').set(obj)
-    .then(function(){ console.log('Products synced to Firebase'); if(onDone) onDone(true); })
-    .catch(function(e){ console.warn('FB sync error:',e); if(onDone) onDone(false); });
+    .then(function(){ 
+      console.log('✓ Products synced to Firebase successfully'); 
+      if(onDone) onDone(true); 
+    })
+    .catch(function(e){ 
+      console.warn('❌ FB sync error:', e); 
+      if(onDone) onDone(false); 
+    });
 }
 function fbUpdateOrder(id, data){
   var r=fbRef('orders/'+id); if(!r) return;
@@ -897,19 +904,25 @@ function fbStopListening(){
 }
 function fbStartBuyerListening(){
   if(!fbDB){ console.warn('No Firebase for buyer listener'); return; }
+  console.log('Starting buyer listener for products...');
   fbDB.ref('products').on('value', function(snap){
     var data=snap.val();
+    console.log('Buyer received products from Firebase:', data);
     if(data){
       // Sort newest first by id (which is timestamp-based)
       var prods=Object.values(data);
       prods.sort(function(a,b){ return (b.id||'').localeCompare(a.id||''); });
       ST.products=prods;
+      console.log('Updated ST.products with', prods.length, 'products');
     } else {
       ST.products=[];
+      console.log('No products in Firebase');
     }
     sd();
     ST.products.forEach(function(p){ if(p.cat&&CATS.indexOf(p.cat)===-1){CATS.push(p.cat);CI[p.cat]='📦';} });
     renderCats(); renderProds();
+  }, function(error){
+    console.error('Firebase listener error:', error);
   });
 }
 
@@ -1435,14 +1448,28 @@ function addProd(){
   var prod={id:'p'+Date.now(),name:n,code:c,cat:cat,pack:pk,mrp:m,dp:dp,desc:d,videoUrl:vid,em:CE[cat]||'📦',ik:null};
   if(newProdImg) prod.customImg=newProdImg;
   ST.products.unshift(prod); sd();
-  // 1. Reset form and update list IMMEDIATELY
+  // 1. Reset form IMMEDIATELY - clear all fields right now
   resetAddForm();
+  // Force a DOM update by triggering input events
+  var inputs=['np-n','np-c','np-m','np-dp','np-pk','np-d','np-vid'];
+  inputs.forEach(function(id){ 
+    var el=document.getElementById(id);
+    if(el) el.value='';
+  });
+  document.getElementById('np-cat').selectedIndex=0;
+  // Clear image preview
+  document.getElementById('pu-preview-wrap').style.display='none';
+  document.getElementById('pu-area').style.display='flex';
+  document.getElementById('pu-preview').src='';
+  
   renderManage();
   toast('Product added!','ok');
   // 2. Then show overlay and sync to Firebase in background
   var iv=showUploadOverlay();
   fbSyncProducts(function(success){
     finishUploadOverlay(iv, success);
+    // Force buyer listeners to refresh
+    if(fbDB) fbDB.ref('products').once('value');
   });
 }
 
