@@ -1,16 +1,11 @@
 {
-  "name": "shape-store-portal",
+  "name": "shape-portal",
   "version": "1.0.0",
-  "description": "Simple Shape Store Portal with real-time sync",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.5.4"
-  },
-  "engines": {
-    "node": "16"
+    "express": "^4.18.2"
   }
 }
