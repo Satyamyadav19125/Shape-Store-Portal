@@ -1,12 +1,14 @@
 {
   "name": "shape-trade-portal",
-  "version": "2.0.0",
+  "version": "2.1.0",
+  "description": "Shape Trade Portal - Wholesale marketplace by Satyam Yadav",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "mongoose": "^8.0.0",
     "socket.io": "^4.7.5"
   },
   "engines": {
