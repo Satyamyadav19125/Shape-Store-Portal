@@ -707,12 +707,28 @@ socket.on('disconnect',function(){
   setConn(false);
 });
 socket.on('init',function(d){
-  console.log('📊 Received init:', d);
+  console.log('📊 Received init data');
   products=d.products||[];
   orders=d.orders||[];
   buyers=d.buyers||[];
   categories=d.categories||[];
   if(d.settings)settings=Object.assign(settings,d.settings);
+  // Always sync settings.categories from Category collection + settings
+  var catNames=[];
+  for(var i=0;i<categories.length;i++){
+    var cn=categories[i].name||categories[i];
+    if(cn&&catNames.indexOf(cn)===-1)catNames.push(cn);
+  }
+  if(settings.categories&&settings.categories.length>0){
+    for(var i=0;i<settings.categories.length;i++){
+      if(settings.categories[i]&&catNames.indexOf(settings.categories[i])===-1)catNames.push(settings.categories[i]);
+    }
+  }
+  // Also add categories from products themselves
+  for(var i=0;i<products.length;i++){
+    if(products[i].cat&&catNames.indexOf(products[i].cat)===-1)catNames.push(products[i].cat);
+  }
+  settings.categories=catNames;
   refreshCategories();
   redraw();
   updateStorageStatus('✅ Ready');
