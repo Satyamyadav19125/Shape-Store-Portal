@@ -556,13 +556,16 @@ io.on('connection', (socket) => {
   socket.on('admin-update-category', async (data, callback) => {
     try {
       const { oldName, newName } = data;
-      console.log(`Updating category: ${oldName} -> ${newName}`);
+      console.log('Renaming category:', oldName, '->', newName);
       
       if (isConnected && !useFallback) {
-        // Update all products that have this category
+        // 1. Update Category collection
+        await Category.updateMany({ name: oldName }, { name: newName });
+        
+        // 2. Update all products with old category
         await Product.updateMany({ cat: oldName }, { cat: newName });
         
-        // Update settings categories array using updateOne to avoid _id validation
+        // 3. Update settings.categories using raw driver (avoids _id validation)
         const existingSettings = await Settings.findOne();
         if (existingSettings && existingSettings.categories) {
           const newCats = existingSettings.categories.map(c => c === oldName ? newName : c);
@@ -572,39 +575,58 @@ io.on('connection', (socket) => {
           );
         }
       } else {
-        // Update in JSON files
+        let categories = loadJSON(categoriesFile);
+        categories = categories.map(c => {
+          if (typeof c === 'string') return c === oldName ? newName : c;
+          return c.name === oldName ? { ...c, name: newName } : c;
+        });
+        saveJSON(categoriesFile, categories);
+        
         let products = loadJSON(productsFile);
         products = products.map(p => p.cat === oldName ? { ...p, cat: newName } : p);
         saveJSON(productsFile, products);
         
-        let settings = loadJSON(settingsFile);
-        if (settings && settings.categories) {
-          settings.categories = settings.categories.map(c => c === oldName ? newName : c);
-          saveJSON(settingsFile, settings);
+        let settingsArr = loadJSON(settingsFile);
+        if (Array.isArray(settingsArr) && settingsArr[0] && settingsArr[0].categories) {
+          settingsArr[0].categories = settingsArr[0].categories.map(c => c === oldName ? newName : c);
+          saveJSON(settingsFile, settingsArr);
         }
       }
 
-      // Get and emit updated data
-      let allProducts;
-      let allSettings;
+      // 4. Broadcast ALL fresh data to ALL connected clients
+      let allProducts, allOrders, allBuyers, allCategories, allSettings;
       if (isConnected && !useFallback) {
         allProducts = await Product.find();
-        allSettings = await Settings.findOne();
+        allOrders = await Order.find();
+        allBuyers = await Buyer.find();
+        allCategories = await Category.find();
+        const sd = await Settings.findOne();
+        allSettings = sd ? sd.toObject() : null;
       } else {
         allProducts = loadJSON(productsFile);
-        allSettings = loadJSON(settingsFile);
+        allOrders = loadJSON(ordersFile);
+        allBuyers = loadJSON(buyersFile);
+        allCategories = loadJSON(categoriesFile);
+        allSettings = (loadJSON(settingsFile) || [{}])[0] || null;
       }
       
-      io.emit('products-updated', allProducts);
-      io.emit('settings-updated', allSettings);
-      console.log(`Category updated successfully: ${oldName} -> ${newName}`);
-
+      // Broadcast fresh init to ALL clients so everything refreshes
+      io.emit('init', {
+        products: allProducts || [],
+        orders: allOrders || [],
+        buyers: allBuyers || [],
+        categories: allCategories || [],
+        settings: allSettings || { whatsapp: '', email: '', phone: '', categories: [] }
+      });
+      
+      console.log('Category renamed successfully:', oldName, '->', newName);
       if (callback) callback({ success: true });
     } catch (error) {
       console.error('Error updating category:', error);
       if (callback) callback({ success: false, error: error.message });
     }
   });
+
   socket.on('admin-delete-category', async (categoryName, callback) => {
     try {
       if (isConnected && !useFallback) {
