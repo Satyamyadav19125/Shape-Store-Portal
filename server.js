@@ -563,13 +563,6 @@ io.on('connection', (socket) => {
         
         // Update all products that have this category
         await Product.updateMany({ cat: oldName }, { cat: newName });
-        
-        // Update settings categories if it exists
-        const existingSettings = await Settings.findOne();
-        if (existingSettings && existingSettings.categories) {
-          existingSettings.categories = existingSettings.categories.map(c => c === oldName ? newName : c);
-          await existingSettings.save();
-        }
       } else {
         // Update in JSON files
         let categories = loadJSON(categoriesFile);
@@ -579,30 +572,20 @@ io.on('connection', (socket) => {
         let products = loadJSON(productsFile);
         products = products.map(p => p.cat === oldName ? { ...p, cat: newName } : p);
         saveJSON(productsFile, products);
-        
-        let settings = loadJSON(settingsFile);
-        if (settings && settings.categories) {
-          settings.categories = settings.categories.map(c => c === oldName ? newName : c);
-          saveJSON(settingsFile, settings);
-        }
       }
 
       // Emit updates
       let allCategories;
       let allProducts;
-      let allSettings;
       if (isConnected && !useFallback) {
         allCategories = await Category.find();
         allProducts = await Product.find();
-        allSettings = await Settings.findOne();
       } else {
         allCategories = loadJSON(categoriesFile);
         allProducts = loadJSON(productsFile);
-        allSettings = loadJSON(settingsFile);
       }
       io.emit('categories-updated', allCategories);
       io.emit('products-updated', allProducts);
-      io.emit('settings-updated', allSettings);
 
       if (callback) callback({ success: true });
     } catch (error) {
