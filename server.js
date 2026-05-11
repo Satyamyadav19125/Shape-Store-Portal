@@ -562,11 +562,14 @@ io.on('connection', (socket) => {
         // Update all products that have this category
         await Product.updateMany({ cat: oldName }, { cat: newName });
         
-        // Update settings categories array
-        let settings = await Settings.findOne();
-        if (settings && settings.categories) {
-          settings.categories = settings.categories.map(c => c === oldName ? newName : c);
-          await settings.save();
+        // Update settings categories array using updateOne to avoid _id validation
+        const existingSettings = await Settings.findOne();
+        if (existingSettings && existingSettings.categories) {
+          const newCats = existingSettings.categories.map(c => c === oldName ? newName : c);
+          await Settings.collection.updateOne(
+            { _id: existingSettings._id },
+            { $set: { categories: newCats } }
+          );
         }
       } else {
         // Update in JSON files
